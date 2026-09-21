@@ -298,7 +298,7 @@ function clearAll() {
 function openModal(sn) {
   modalSn = sn; modalPage = 0;
   document.getElementById('mTitle').textContent =
-    `测点明细 — ${(DATA[sn].user_name || '')} (SN ${sn})`;
+    `测点明细 — ${DATA[sn].user_name || '未命名测点'} (SN ${sn})`;
   document.getElementById('mask').classList.add('show');
   renderModal();
 }
@@ -309,8 +309,11 @@ function renderModal() {
   const pages = Math.max(1, Math.ceil(pts.length / PAGE_SIZE));
   modalPage = Math.min(modalPage, pages - 1);
   const slice = pts.slice(modalPage * PAGE_SIZE, (modalPage + 1) * PAGE_SIZE);
-  document.getElementById('mBody').innerHTML = slice.map((p, i) =>
-    `<tr><td>${modalPage * PAGE_SIZE + i + 1}</td><td>${p.time}</td><td>${p.temp.toFixed(1)}</td></tr>`).join('');
+  document.getElementById('mBody').innerHTML = slice.length ? slice.map((p, i) =>
+    `<tr><td>${modalPage * PAGE_SIZE + i + 1}</td><td>${p.time}</td><td>${p.temp.toFixed(1)}</td></tr>`).join('') :
+    `<tr><td colspan="3" style="padding:30px 14px;color:#92400e;background:#fffbeb;font-size:14px;line-height:1.8">
+     ⚠️ 这份报告没有解析出每分钟温度数据（共 0 条）。<br>你的温度计报告格式可能尚未适配 ——
+     <b>请把这个 PDF 文件发给开发者</b>，适配后重新拖入即可看到全部数据。</td></tr>`;
   document.getElementById('mPage').textContent = `第 ${modalPage + 1} / ${pages} 页 · 共 ${pts.length} 条`;
   document.getElementById('mPrev').disabled = modalPage === 0;
   document.getElementById('mNext').disabled = modalPage >= pages - 1;
