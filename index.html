@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Testo 184 温度数据采集汇总</title>
+<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="core.js"></script>
+<style>
+:root{
+  --blue:#1a5fb4; --blue-d:#124a8f; --bg:#f2f5f9; --card:#fff;
+  --line:#dbe3ec; --tx:#22303f; --tx2:#64748b; --ok:#0a7d32; --warn:#b45309; --err:#b91c1c;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:"Microsoft YaHei","PingFang SC",system-ui,sans-serif;background:var(--bg);color:var(--tx);min-height:100vh}
+header{background:linear-gradient(135deg,var(--blue-d),var(--blue));color:#fff;padding:18px 24px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+header .logo{font-size:26px}
+header h1{font-size:19px;font-weight:600}
+header .sub{font-size:12px;opacity:.85;margin-top:2px}
+header .spacer{flex:1}
+.btn{border:none;border-radius:8px;padding:9px 18px;font-size:14px;cursor:pointer;font-family:inherit;transition:.15s}
+.btn-pri{background:#fff;color:var(--blue-d);font-weight:600}
+.btn-pri:hover{background:#e8f0fb}
+.btn-sec{background:rgba(255,255,255,.16);color:#fff}
+.btn-sec:hover{background:rgba(255,255,255,.28)}
+.btn-ghost{background:#eef2f7;color:var(--tx2)}
+.btn-ghost:hover{background:#e2e8f0;color:var(--tx)}
+.btn-danger{background:#fef2f2;color:var(--err)}
+.btn-danger:hover{background:#fee2e2}
+main{max-width:1080px;margin:0 auto;padding:20px 20px 60px}
+
+/* 导入区 */
+.drop{background:var(--card);border:2px dashed #b9c8dc;border-radius:14px;padding:34px 20px;text-align:center;cursor:pointer;transition:.2s}
+.drop:hover,.drop.over{border-color:var(--blue);background:#f5f9ff}
+.drop .ic{font-size:40px}
+.drop .t1{font-size:16px;font-weight:600;margin-top:8px}
+.drop .t2{font-size:13px;color:var(--tx2);margin-top:6px;line-height:1.7}
+.drop.busy{pointer-events:none;opacity:.6}
+
+.hint{margin-top:12px;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:10px 14px;font-size:13px;color:#78350f;line-height:1.7}
+.hint b{color:#92400e}
+
+/* 统计条 */
+.stats{display:flex;gap:10px;margin:18px 0 12px;flex-wrap:wrap;align-items:center}
+.stats .pill{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:6px 14px;font-size:13px;color:var(--tx2)}
+.stats .pill b{color:var(--tx);font-size:15px;margin:0 2px}
+.stats .spacer{flex:1}
+
+/* 测点卡片 */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;box-shadow:0 1px 3px rgba(16,30,54,.05)}
+.card .top{display:flex;align-items:center;gap:8px}
+.card .dot{width:10px;height:10px;border-radius:50%;background:var(--ok);flex:none}
+.card .name{font-size:15px;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.card .sn{font-size:12px;color:var(--tx2);margin-top:4px;font-family:Consolas,monospace}
+.card .meta{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:12px}
+.card .kv{background:#f7f9fc;border-radius:8px;padding:7px 9px}
+.card .kv .k{font-size:11px;color:var(--tx2)}
+.card .kv .v{font-size:14px;font-weight:600;margin-top:2px}
+.card .kv .v small{font-size:11px;color:var(--tx2);font-weight:400}
+.card .range{margin-top:10px;font-size:12px;color:var(--tx2);display:flex;justify-content:space-between}
+.card .ops{display:flex;gap:8px;margin-top:12px}
+.card .ops .btn{padding:6px 12px;font-size:12.5px}
+
+/* 空态 */
+.empty{text-align:center;color:var(--tx2);padding:46px 0;font-size:14px;line-height:2}
+.empty .big{font-size:44px}
+
+/* 说明 */
+.help{margin-top:22px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 18px;font-size:13px;color:var(--tx2);line-height:1.9}
+.help h3{font-size:14px;color:var(--tx);margin-bottom:6px}
+.help ol{padding-left:20px}
+.help code{background:#eef2f7;border-radius:4px;padding:1px 6px;font-size:12px;color:var(--blue-d)}
+
+/* 模态 */
+.mask{display:none;position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:50;padding:30px 16px;overflow:auto}
+.mask.show{display:flex;align-items:flex-start;justify-content:center}
+.modal{background:var(--card);border-radius:14px;max-width:640px;width:100%;max-height:calc(100vh - 60px);display:flex;flex-direction:column}
+.modal .mh{padding:14px 18px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px}
+.modal .mh .t{font-size:15px;font-weight:600;flex:1}
+.modal .mb{overflow:auto;padding:6px 18px 14px}
+.modal table{width:100%;border-collapse:collapse;font-size:13px}
+.modal th{position:sticky;top:0;background:#f7f9fc;color:var(--tx2);font-weight:500;text-align:left;padding:8px 10px;border-bottom:1px solid var(--line)}
+.modal td{padding:7px 10px;border-bottom:1px solid #eef2f7;font-family:Consolas,monospace}
+.modal .mf{padding:10px 18px;border-top:1px solid var(--line);display:flex;gap:8px;align-items:center;justify-content:center}
+
+/* toast */
+#toast{position:fixed;left:50%;bottom:34px;transform:translateX(-50%);background:#1e293b;color:#fff;padding:10px 20px;border-radius:10px;font-size:13.5px;opacity:0;pointer-events:none;transition:.25s;z-index:99;max-width:80vw}
+#toast.show{opacity:.96}
+#toast.err{background:var(--err)}
+#toast.ok{background:var(--ok)}
+</style>
+</head>
+<body>
+<header>
+  <span class="logo">🌡️</span>
+  <div>
+    <h1>Testo 184 温度数据采集汇总</h1>
+    <div class="sub">温度计 U 盘报告 → 拖入本页 → 汇总导出 Excel · 数据仅保存在本浏览器</div>
+  </div>
+  <div class="spacer"></div>
+  <button class="btn btn-sec" onclick="exportExcel()">⬇ 导出 Excel</button>
+</header>
+<main>
+  <div class="drop" id="drop">
+    <div class="ic">📂</div>
+    <div class="t1">把温度计报告 PDF 拖到这里（可一次拖多份）</div>
+    <div class="t2">温度计插上电脑后是一个 U 盘，把其中的 <b>testo 184 measurement report.pdf</b> 拖进来即可<br>
+    拔掉换下一支温度计，再拖入新报告 —— 数据自动按 SN 汇总</div>
+    <input type="file" id="file" accept=".pdf,application/pdf" multiple hidden>
+  </div>
+
+  <div class="hint">💡 <b>如何找到报告文件：</b>温度计插到电脑 USB 口 → 弹出的 U 盘（盘符如 E:）→ 根目录的
+  <b>testo 184 measurement report.pdf</b> → 拖入本页。同一支温度计重复拖入不会产生重复数据（按 SN 覆盖更新）。</div>
+
+  <div class="stats">
+    <span class="pill">测点 <b id="stN">0</b></span>
+    <span class="pill">温度数据 <b id="stP">0</b> 条</span>
+    <span class="spacer"></span>
+    <button class="btn btn-ghost" onclick="clearAll()">🗑 清空全部</button>
+  </div>
+
+  <div class="grid" id="grid"></div>
+  <div class="empty" id="empty"><div class="big">📡</div>还没有数据<br>插入温度计，把 U 盘里的报告 PDF 拖进来开始采集</div>
+
+  <div class="help">
+    <h3>使用步骤</h3>
+    <ol>
+      <li>把 Testo 184 温度计插到电脑 USB 口（它会显示为一个 U 盘）</li>
+      <li>打开 U 盘，找到 <code>testo 184 measurement report.pdf</code></li>
+      <li>把 PDF 拖到本页上方 —— 自动解析 SN 和全部每分钟温度</li>
+      <li>拔掉换下一支温度计，重复拖入；随时点右上角「导出 Excel」</li>
+    </ol>
+    <p>🔒 隐私说明：本页为纯静态页面，解析与存储全部在你的浏览器本地完成（IndexedDB），不向任何服务器上传数据。
+    注：出于浏览器安全限制，网页无法直接读取 USB 设备，因此采用「拖入报告文件」方式采集。</p>
+  </div>
+</main>
+
+<!-- 明细模态 -->
+<div class="mask" id="mask" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <div class="mh">
+      <span class="t" id="mTitle">测点明细</span>
+      <button class="btn btn-ghost" onclick="closeModal()">✕ 关闭</button>
+    </div>
+    <div class="mb"><table><thead><tr><th>#</th><th>时间</th><th>温度 (°C)</th></tr></thead><tbody id="mBody"></tbody></table></div>
+    <div class="mf">
+      <button class="btn btn-ghost" id="mPrev" onclick="pageMove(-1)">‹ 上一页</button>
+      <span id="mPage" style="font-size:13px;color:var(--tx2)"></span>
+      <button class="btn btn-ghost" id="mNext" onclick="pageMove(1)">下一页 ›</button>
+    </div>
+  </div>
+</div>
+<div id="toast"></div>
+
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc =
+  'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+
+const PAGE_SIZE = 500;
+let DATA = {};            // sn -> rec（与桌面版 store 同构）
+let modalSn = null, modalPage = 0;
+
+/* ---------------- IndexedDB ---------------- */
+const DB = {
+  db: null,
+  open() {
+    return new Promise((res, rej) => {
+      const q = indexedDB.open('testo184', 1);
+      q.onupgradeneeded = e => e.target.result.createObjectStore('points');
+      q.onsuccess = e => { DB.db = e.target.result; res(); };
+      q.onerror = () => rej(q.error);
+    });
+  },
+  tx(mode, fn) {
+    return new Promise((res, rej) => {
+      const t = DB.db.transaction('points', mode);
+      const r = fn(t.objectStore('points'));
+      t.oncomplete = () => res(r && r.result);
+      t.onerror = () => rej(t.error);
+    });
+  },
+  set: (k, v) => DB.tx('readwrite', s => s.put(v, k)),
+  del: k => DB.tx('readwrite', s => s.delete(k)),
+  clear: () => DB.tx('readwrite', s => s.clear()),
+  load() {
+    return new Promise((res, rej) => {
+      const out = {};
+      const t = DB.db.transaction('points');
+      const c = t.objectStore('points').openCursor();
+      c.onsuccess = e => {
+        const cur = e.target.result;
+        if (cur) { out[cur.key] = cur.value; cur.continue(); } else res(out);
+      };
+      c.onerror = () => rej(c.error);
+    });
+  }
+};
+
+/* ---------------- 工具 ---------------- */
+function toast(msg, cls) {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.className = 'show ' + (cls || '');
+  clearTimeout(el._t); el._t = setTimeout(() => el.className = '', 3200);
+}
+const fmtT = v => (v === null || v === undefined || v === '') ? '-' : v;
+
+/* ---------------- 渲染 ---------------- */
+function render() {
+  const grid = document.getElementById('grid');
+  const recs = Object.entries(DATA).map(([sn, r]) => ({ sn, r }))
+    .sort((a, b) => String(a.r.first_seen || '').localeCompare(String(b.r.first_seen || '')));
+  const nPts = recs.reduce((s, x) => s + core.pointsOf(x.r).length, 0);
+  document.getElementById('stN').textContent = recs.length;
+  document.getElementById('stP').textContent = nPts;
+  document.getElementById('empty').style.display = recs.length ? 'none' : '';
+  grid.innerHTML = recs.map(({ sn, r }) => {
+    const pts = core.pointsOf(r);
+    const temps = pts.map(p => p.temp);
+    const avg = temps.length ? (temps.reduce((a, b) => a + b, 0) / temps.length).toFixed(1) : '-';
+    const name = r.user_name || '';
+    const lim = (r.limit_min !== null && r.limit_max !== null)
+      ? `限值 ${r.limit_min} ~ ${r.limit_max}°C` : '';
+    return `<div class="card">
+      <div class="top"><span class="dot"></span>
+        <span class="name" title="${esc(name)}">${esc(name) || '<i style="color:#94a3b8">未命名测点</i>'}</span>
+        <button class="btn btn-ghost" title="重命名" onclick="rename('${sn}')">✏️</button>
+      </div>
+      <div class="sn">SN ${esc(sn)} ${r.model ? '· ' + esc(r.model) : ''}</div>
+      <div class="meta">
+        <div class="kv"><div class="k">数据点数</div><div class="v">${pts.length}</div></div>
+        <div class="kv"><div class="k">开始时间</div><div class="v" style="font-size:12px">${pts.length ? pts[0].time.slice(5, 16) : '-'}</div></div>
+        <div class="kv"><div class="k">结束时间</div><div class="v" style="font-size:12px">${pts.length ? pts[pts.length - 1].time.slice(5, 16) : '-'}</div></div>
+        <div class="kv"><div class="k">最低温</div><div class="v">${temps.length ? Math.min(...temps) : '-'}<small> °C</small></div></div>
+        <div class="kv"><div class="k">最高温</div><div class="v">${temps.length ? Math.max(...temps) : '-'}<small> °C</small></div></div>
+        <div class="kv"><div class="k">平均温</div><div class="v">${avg}<small> °C</small></div></div>
+      </div>
+      <div class="range"><span>记录间隔 ${r.interval_min ? r.interval_min + ' 分钟' : '按数据推算'}</span><span>${lim}</span></div>
+      <div class="ops">
+        <button class="btn btn-ghost" onclick="openModal('${sn}')">📋 查看明细</button>
+        <button class="btn btn-danger" onclick="removeSn('${sn}')">删除</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+
+/* ---------------- 导入 ---------------- */
+async function handleFiles(files) {
+  const pdfs = [...files].filter(f => /\.pdf$/i.test(f.name) || f.type === 'application/pdf');
+  if (!pdfs.length) { toast('请拖入 PDF 报告文件', 'err'); return; }
+  document.getElementById('drop').classList.add('busy');
+  for (const f of pdfs) {
+    try {
+      const buf = new Uint8Array(await f.arrayBuffer());
+      const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+      const input = await core.extractFromPdf(pdf);
+      const rec = core.parseReport(input);
+      const sn = rec.sn || f.name.replace(/\.pdf$/i, '');
+      const old = DATA[sn];
+      if (!old || rec.points.length >= core.pointsOf(old).length) {
+        rec.user_name = old ? old.user_name : '';
+        rec.first_seen = old ? old.first_seen : core._now ? core._now() : new Date().toLocaleString('zh-CN', { hour12: false });
+        rec.last_seen = new Date().toLocaleString('zh-CN', { hour12: false });
+        DATA[sn] = rec;
+        await DB.set(sn, rec);
+        toast(`✅ ${f.name}：SN ${sn}，${rec.points.length} 条数据${old ? '（已更新）' : ''}`, 'ok');
+      } else {
+        toast(`${f.name}：SN ${sn} 数据未变化，已跳过`);
+      }
+    } catch (e) {
+      toast(`❌ ${f.name}：${e.message || '解析失败'}`, 'err');
+    }
+  }
+  document.getElementById('drop').classList.remove('busy');
+  render();
+}
+
+/* ---------------- 测点操作 ---------------- */
+function rename(sn) {
+  const cur = (DATA[sn] || {}).user_name || '';
+  const name = prompt(`为 SN ${sn} 设置测点名称（显示在列表和 Excel 中）：`, cur);
+  if (name === null) return;
+  DATA[sn].user_name = name.trim();
+  DB.set(sn, DATA[sn]).then(render);
+}
+function removeSn(sn) {
+  if (!confirm(`确定删除测点 ${sn} 的全部数据？`)) return;
+  delete DATA[sn]; DB.del(sn).then(render); toast('已删除');
+}
+function clearAll() {
+  if (!confirm('将清空全部测点数据，确定？')) return;
+  DATA = {}; DB.clear().then(() => { render(); toast('已清空'); });
+}
+
+/* ---------------- 明细模态 ---------------- */
+function openModal(sn) {
+  modalSn = sn; modalPage = 0;
+  document.getElementById('mTitle').textContent =
+    `测点明细 — ${(DATA[sn].user_name || '')} (SN ${sn})`;
+  document.getElementById('mask').classList.add('show');
+  renderModal();
+}
+function closeModal() { document.getElementById('mask').classList.remove('show'); }
+function pageMove(d) { modalPage = Math.max(0, modalPage + d); renderModal(); }
+function renderModal() {
+  const pts = core.pointsOf(DATA[modalSn]);
+  const pages = Math.max(1, Math.ceil(pts.length / PAGE_SIZE));
+  modalPage = Math.min(modalPage, pages - 1);
+  const slice = pts.slice(modalPage * PAGE_SIZE, (modalPage + 1) * PAGE_SIZE);
+  document.getElementById('mBody').innerHTML = slice.map((p, i) =>
+    `<tr><td>${modalPage * PAGE_SIZE + i + 1}</td><td>${p.time}</td><td>${p.temp.toFixed(1)}</td></tr>`).join('');
+  document.getElementById('mPage').textContent = `第 ${modalPage + 1} / ${pages} 页 · 共 ${pts.length} 条`;
+  document.getElementById('mPrev').disabled = modalPage === 0;
+  document.getElementById('mNext').disabled = modalPage >= pages - 1;
+}
+
+/* ---------------- Excel 导出 ---------------- */
+function exportExcel() {
+  if (!Object.keys(DATA).length) { toast('还没有数据，先拖入温度计报告', 'err'); return; }
+  try {
+    const wb = XLSX.utils.book_new();
+    core.buildWorkbookAoa(DATA).forEach(s => {
+      const ws = XLSX.utils.aoa_to_sheet(s.rows);
+      ws['!cols'] = (s.rows[0] || []).map(() => ({ wch: 16 }));
+      XLSX.utils.book_append_sheet(wb, ws, s.name);
+    });
+    const ts = new Date().toISOString().slice(0, 19).replace(/[T:]/g, '').replace('-', '');
+    XLSX.writeFile(wb, `温度汇总_${ts}.xlsx`);
+    toast('✅ Excel 已导出', 'ok');
+  } catch (e) { toast('导出失败：' + e.message, 'err'); }
+}
+
+/* ---------------- 事件绑定 ---------------- */
+const drop = document.getElementById('drop');
+const fileInput = document.getElementById('file');
+drop.addEventListener('click', e => { if (e.target.tagName !== 'INPUT') fileInput.click(); });
+fileInput.addEventListener('change', () => { handleFiles(fileInput.files); fileInput.value = ''; });
+['dragover', 'dragenter'].forEach(ev => drop.addEventListener(ev, e => {
+  e.preventDefault(); drop.classList.add('over');
+}));
+['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => {
+  e.preventDefault(); drop.classList.remove('over');
+}));
+drop.addEventListener('drop', e => handleFiles(e.dataTransfer.files));
+
+/* ---------------- 启动 ---------------- */
+DB.open().then(DB.load).then(d => { DATA = d; render(); })
+  .catch(() => { render(); toast('本地存储不可用，数据将不会保存', 'err'); });
+</script>
+</body>
+</html>
